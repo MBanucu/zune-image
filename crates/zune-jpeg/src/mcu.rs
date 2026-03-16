@@ -569,6 +569,24 @@ impl<T: ZByteReaderTrait> JpegDecoder<T> {
                             // tmp was only written partially, note that len is in ZigZag order.
                             clobber_more_than_4x4 = len > 10;
 
+                            // GPU tap-out: skip IDCT if gpu_mode is enabled
+                            if self.gpu_mode {
+                                // Store quantized coefficients for GPU, skip IDCT
+                                let coeff_position = if PROGRESSIVE {
+                                    j * 8
+                                } else {
+                                    let c2 = v_samp * 8;
+                                    let c3 = ((j * component.horizontal_sample) + h_samp) * 8;
+                                    component.width_stride * c2 + c3
+                                };
+                                let coeff_slice = channel.get_mut(coeff_position..).unwrap();
+                                // Copy quantized coefficients (tmp) into raw_coeff
+                                for (dst, src) in coeff_slice.iter_mut().zip(tmp.iter()) {
+                                    *dst = *src as i16;
+                                }
+                                continue;
+                            }
+
                             let idct_position = if PROGRESSIVE {
                                 // For non-interleaved, j indexes data units directly
                                 j * 8

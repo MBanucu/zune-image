@@ -80,6 +80,12 @@ pub(crate) struct ICCChunk {
 /// A JPEG Decoder Instance.
 #[allow(clippy::upper_case_acronyms, clippy::struct_excessive_bools)]
 pub struct JpegDecoder<T> {
+    /// If true, skip IDCT and allow extraction of quantized DCT coefficients for GPU processing
+    pub gpu_mode: bool,
+    /// Stores the DCT coefficients for each component when in GPU mode.
+    /// Each inner vector contains the coefficients in natural order (quantized, not dequantized) for all blocks of the component.
+    /// Only populated when `gpu_mode` is true and after decoding.
+    pub gpu_coeff_data: Option<Vec<Vec<i16>>>,
     /// Struct to hold image information from SOI
     pub(crate) info:              ImageInfo,
     ///  Quantization tables, will be set to none and the tables will
@@ -203,6 +209,8 @@ where
             is_mjpeg:          false,
             coeff:             1,
             extended_xmp_segments: vec![],
+            gpu_mode:          false,
+            gpu_coeff_data:    None,
         }
     }
     /// Decode a buffer already in memory
@@ -1049,5 +1057,37 @@ impl ImageInfo {
     #[allow(dead_code)]
     pub(crate) fn set_y(&mut self, sample: u16) {
         self.y_density = sample;
+    }
+}
+
+/// Returns the dequantized DCT coefficients and quantization tables for each component.
+/// Only valid after decoding, and only if gpu_mode is enabled.
+pub fn get_gpu_coefficients_and_tables<T>(decoder: &JpegDecoder<T>) -> Option<Vec<(Vec<i16>, [i32; 64])>> {
+    if !decoder.gpu_mode {
+        return None;
+    }
+    Some(
+        decoder.components
+            .iter()
+            .map(
+                |c| (c.raw_coeff.clone(), c.quantization_table),
+            )
+            .collect(),
+    )
+}
+
+impl<T> JpegDecoder<T> {
+    /// Returns the dequantized DCT coefficients and quantization tables for each component.
+    /// Only valid after decoding, and only if gpu_mode is enabled.
+    pub fn get_gpu_coefficients_and_tables(&self) -> Option<Vec<(Vec<i16>, [i32; 64])>> {
+        if !self.gpu_mode {
+            return None;
+        }
+        Some(
+            self.components
+                .iter()
+                .map(|c| (c.raw_coeff.clone(), c.quantization_table))
+                .collect(),
+        )
     }
 }

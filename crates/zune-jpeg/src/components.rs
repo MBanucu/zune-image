@@ -62,7 +62,7 @@ pub(crate) struct Components {
     /// Whether we need to decode this image component.
     pub needed: bool,
     /// Upsample scanline
-    pub raw_coeff: Vec<i16>,
+    pub raw_coeff: Vec<i16>, // Already public, ensure visibility for GPU tap-out
     /// Upsample destination, stores a scanline worth of sub sampled data
     pub upsample_dest: Vec<i16>,
     /// previous row, used to handle MCU boundaries
